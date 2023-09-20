@@ -19,6 +19,7 @@ package registry
 import (
 	"context"
 
+	"go.opentelemetry.io/otel"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/storage"
@@ -34,6 +35,8 @@ func (s *DryRunnableStorage) Versioner() storage.Versioner {
 }
 
 func (s *DryRunnableStorage) Create(ctx context.Context, key string, obj, out runtime.Object, ttl uint64, dryRun bool) error {
+	ctx, span := otel.Tracer("").Start(ctx, "DryRunnableStorage.Create")
+	defer span.End()
 	if dryRun {
 		if err := s.Storage.Get(ctx, key, storage.GetOptions{}, out); err == nil {
 			return storage.NewKeyExistsError(key, 0)

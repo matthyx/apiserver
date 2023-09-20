@@ -22,12 +22,10 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 	"unicode"
 	"unicode/utf8"
 
-	"go.opentelemetry.io/otel/attribute"
-
+	"go.opentelemetry.io/otel"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metainternalversionscheme "k8s.io/apimachinery/pkg/apis/meta/internalversion/scheme"
@@ -44,7 +42,6 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/util/dryrun"
-	"k8s.io/component-base/tracing"
 	"k8s.io/klog/v2"
 )
 
@@ -54,8 +51,8 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 	return func(w http.ResponseWriter, req *http.Request) {
 		ctx := req.Context()
 		// For performance tracking purposes.
-		ctx, span := tracing.Start(ctx, "Create", traceFields(req)...)
-		defer span.End(500 * time.Millisecond)
+		ctx, span := otel.Tracer("").Start(ctx, "handler.Create")
+		defer span.End()
 
 		namespace, name, err := scope.Namer.Name(req)
 		if err != nil {
@@ -92,11 +89,9 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 
 		body, err := limitedReadBodyWithRecordMetric(ctx, req, scope.MaxRequestBodyBytes, scope.Resource.GroupResource().String(), requestmetrics.Create)
 		if err != nil {
-			span.AddEvent("limitedReadBody failed", attribute.Int("len", len(body)), attribute.String("err", err.Error()))
 			scope.err(err, w, req)
 			return
 		}
-		span.AddEvent("limitedReadBody succeeded", attribute.Int("len", len(body)))
 
 		options := &metav1.CreateOptions{}
 		values := req.URL.Query()
@@ -213,11 +208,9 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 			return result, err
 		})
 		if err != nil {
-			span.AddEvent("Write to database call failed", attribute.Int("len", len(body)), attribute.String("err", err.Error()))
 			scope.err(err, w, req)
 			return
 		}
-		span.AddEvent("Write to database call succeeded", attribute.Int("len", len(body)))
 
 		code := http.StatusCreated
 		status, ok := result.(*metav1.Status)
@@ -246,6 +239,8 @@ type namedCreaterAdapter struct {
 }
 
 func (c *namedCreaterAdapter) Create(ctx context.Context, name string, obj runtime.Object, createValidatingAdmission rest.ValidateObjectFunc, options *metav1.CreateOptions) (runtime.Object, error) {
+	ctx, span := otel.Tracer("").Start(ctx, "namedCreaterAdapter.Create")
+	defer span.End()
 	return c.Creater.Create(ctx, obj, createValidatingAdmission, options)
 }
 
