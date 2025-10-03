@@ -340,7 +340,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 	collectionDeleter, isCollectionDeleter := storage.(rest.CollectionDeleter)
 	updater, isUpdater := storage.(rest.Updater)
 	patcher, isPatcher := storage.(rest.Patcher)
-	watcher, isWatcher := storage.(rest.Watcher)
+	watcher, isWatcher := (rest.Watcher)(nil), false
 	connecter, isConnecter := storage.(rest.Connecter)
 	storageMeta, isMetadata := storage.(rest.StorageMetadata)
 	storageVersionProvider, isStorageVersionProvider := storage.(rest.StorageVersionProvider)
